@@ -76,6 +76,11 @@ describe("toMarkdown", () => {
     expect(await toMarkdown("<p>a &amp; b &lt;c&gt; &#233;&#x41;&nbsp;z</p>")).toBe("a & b <c> éA z");
   });
 
+  it("tolerates self-closing SVG children", async () => {
+    const svg = '<svg viewBox="0 0 8 8"><path d="M0 0"/><rect x="1" y="1"/><title>icon</title></svg>';
+    expect(await toMarkdown(`<p>${svg} before</p><p>after</p>`)).toBe("before\n\nafter");
+  });
+
   it("collapses runs of blank lines to one", async () => {
     expect(await toMarkdown("<div><div><p>a</p></div></div><section><p>b</p></section>")).toBe("a\n\nb");
   });

@@ -55,6 +55,17 @@ function recordView(c: Context<AppEnv>, slug: string) {
   }
 }
 
+// The landing page. The operator picked LAUNCH_SLUG to greet visitors, so it is served
+// to anyone, signed in or not. An eyes-only or missing launch page falls back to /me.
+pages.get("/", async (c) => {
+  const slug = c.env.LAUNCH_SLUG;
+  const meta = slug ? await pagers.get(c.env, slug) : null;
+  const html = meta && !meta.eyes_only ? await pagers.html(c.env, meta.slug) : null;
+  if (html === null) return c.redirect("/me", 302);
+  track(c, "Landing Viewed", { slug });
+  return c.html(html, 200, { ...hardened("'none'"), "cache-control": "public, max-age=60" });
+});
+
 pages.get("/p/:slug", browser, async (c) => {
   const slug = c.req.param("slug");
   const meta = await viewable(c, slug);

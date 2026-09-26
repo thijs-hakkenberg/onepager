@@ -7,8 +7,18 @@ const HEADINGS: Record<string, string> = { h1: "#", h2: "##", h3: "###", h4: "##
 const PARAGRAPH = new Set(["p", "div", "section", "article", "header", "footer", "ul", "ol", "tr"]);
 const BLOCK = new Set([...PARAGRAPH, "table", ...Object.keys(HEADINGS)]);
 const DROP = new Set(["script", "style", "head", "title", "noscript"]);
-// `Element.canHaveContent` is not exposed by workerd, and onEndTag throws on void elements.
+// `Element.canHaveContent` is not exposed by workerd, and onEndTag throws on void elements
+// and on self-closing foreign ones (`<path/>` in inline SVG). Returns whether it registered.
 const VOID = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"]);
+function onEnd(el: Element, fn: () => void): boolean {
+  if (VOID.has(el.tagName.toLowerCase())) return false;
+  try {
+    el.onEndTag(fn);
+    return true;
+  } catch {
+    return false;
+  }
+}
 export const SEARCH_TEXT_LIMIT = 30_000;
 
 export async function toMarkdown(html: string): Promise<string> {
@@ -39,8 +49,7 @@ export async function toMarkdown(html: string): Promise<string> {
         flush();
         const tag = el.tagName.toLowerCase();
         if (DROP.has(tag)) {
-          drop++;
-          if (!VOID.has(tag)) el.onEndTag(() => { flush(); drop = Math.max(0, drop - 1); });
+          if (onEnd(el, () => { flush(); drop = Math.max(0, drop - 1); })) drop++;
           return;
         }
         // An unclosed <head> would otherwise swallow the whole document.
@@ -55,8 +64,7 @@ export async function toMarkdown(html: string): Promise<string> {
             link = { href: href === null ? null : decodeEntities(href), text: [] };
           }
         }
-        if (VOID.has(tag)) return;
-        el.onEndTag(() => {
+        onEnd(el, () => {
           flush();
           if (drop > 0) return;
           if (tag === "a" && link) closeLink();

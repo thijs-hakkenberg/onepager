@@ -9,7 +9,6 @@ import { tokensApi } from "./routes/tokens";
 export const app = new Hono<AppEnv>();
 
 app.get("/health", (c) => c.json({ status: "ok" }, 200, { "cache-control": "no-store" }));
-app.get("/", (c) => c.redirect(c.env.LAUNCH_SLUG ? `/p/${c.env.LAUNCH_SLUG}` : "/me", 302));
 
 app.route("/api/v1/onepagers", api);
 app.route("/api/v1/groups", groupsApi);

@@ -1,6 +1,7 @@
-import { SELF } from "cloudflare:test";
+import { createExecutionContext, env, SELF } from "cloudflare:test";
+import { app } from "../src/app";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BASE, call, person } from "./helpers";
+import { BASE, call, person, publish } from "./helpers";
 
 const get = (path: string, cookie = "") =>
   SELF.fetch(BASE + path, { redirect: "manual", headers: cookie ? { cookie } : {} });
@@ -122,5 +123,19 @@ describe("chrome", () => {
   it("serves health and the root redirect anonymously", async () => {
     expect(await (await get("/health")).json()).toEqual({ status: "ok" });
     expect((await get("/")).headers.get("location")).toBe("/me");
+  });
+
+  it("serves the launch page at / to anonymous visitors, unless it is eyes-only", async () => {
+    const p = await person();
+    const open = await publish(p, { html: "<h1>Welcome</h1>" });
+    const hidden = await publish(p, { eyes_only: true });
+    const root = (slug: string) =>
+      app.fetch(new Request(`${BASE}/`), { ...env, LAUNCH_SLUG: slug }, createExecutionContext());
+    const res = await root(open.body.slug);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("<h1>Welcome</h1>");
+    expect(res.headers.get("content-security-policy")).toMatch(/^sandbox allow-scripts[^;]*; frame-ancestors 'none'$/);
+    expect((await root(hidden.body.slug)).headers.get("location")).toBe("/me");
+    expect((await root("nosuchpage")).headers.get("location")).toBe("/me");
   });
 });
