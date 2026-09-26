@@ -17,8 +17,18 @@ Read https://onepager.prive-thijs-hakkenberg.workers.dev/api/v1/onepagers/dfad9g
 ```
 
 That page is the [OnePager skill](https://onepager.prive-thijs-hakkenberg.workers.dev/p/dfad9g7m).
-It covers setup, publishing, updating, reading comments and sharing, and says how to install it
-as a Claude Code skill.
+It covers setup, publishing, updating, reading comments and sharing.
+
+To have Claude Code use OnePager without being pointed at it, install the plugin from this
+repo. It bundles the skill and a small publish script
+([`plugins/onepager`](plugins/onepager/skills/onepager/SKILL.md)):
+
+```text
+/plugin marketplace add thijs-hakkenberg/onepager
+/plugin install onepager@onepager
+```
+
+The skill targets the instance above. Set `ONEPAGER_BASE_URL` to point it at your own deployment.
 
 - **Sign-in** with GitHub or Google OAuth, handled inside the Worker.
 - **Publishing** goes through a bearer-token REST API at `/api/v1` (compatible with the
@@ -40,6 +50,7 @@ src/routes/            JSON API and server-rendered pages
 src/views/             Hono JSX views
 public/                static CSS and the browser scripts (comments, dashboard, tokens)
 migrations/            D1 schema
+plugins/onepager/      Claude Code plugin: the OnePager skill and its publish script
 test/                  vitest in workerd via @cloudflare/vitest-pool-workers
 ```
 
