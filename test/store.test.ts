@@ -17,14 +17,14 @@ describe("pagers", () => {
   it("publishes version 1 with a filename-derived title and stores the blob", async () => {
     const owner = who();
     const { slug, version_number } = await pagers.publish(env, owner, {
-      html: doc("Alpha"), filename: "dir/deck.final.html", title: null, comments_enabled: null, eyes_only: null,
+      html: doc("Alpha"), filename: "dir/deck.final.html", title: null, comments_enabled: null, visibility: null,
     });
     expect(slug).toMatch(/^[a-z0-9]{8}$/);
     expect(version_number).toBe(1);
     const meta = (await pagers.get(env, slug))!;
     expect(meta).toMatchObject({
       owner_id: owner.id, title: "deck.final", original_filename: "dir/deck.final.html",
-      comments_enabled: false, eyes_only: false, version_count: 1, size_bytes: doc("Alpha").length,
+      comments_enabled: false, visibility: "signed_in", version_count: 1, size_bytes: doc("Alpha").length,
     });
     expect(meta.content_sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(meta.search_text).toBe("# alpha body of alpha");
@@ -34,15 +34,15 @@ describe("pagers", () => {
   it("republishes as a new version, keeping options that were not sent", async () => {
     const owner = who();
     const { slug } = await pagers.publish(env, owner, {
-      html: doc("One"), filename: "a.html", title: "Named", comments_enabled: true, eyes_only: true,
+      html: doc("One"), filename: "a.html", title: "Named", comments_enabled: true, visibility: "private",
     });
     const meta = (await pagers.get(env, slug))!;
     const out = await pagers.republish(env, meta, owner, {
-      html: doc("Two"), filename: "b.html", title: null, comments_enabled: null, eyes_only: null,
+      html: doc("Two"), filename: "b.html", title: null, comments_enabled: null, visibility: null,
     });
     expect(out.version_number).toBe(2);
     const after = (await pagers.get(env, slug))!;
-    expect(after).toMatchObject({ title: "Named", original_filename: "b.html", comments_enabled: true, eyes_only: true, version_count: 2 });
+    expect(after).toMatchObject({ title: "Named", original_filename: "b.html", comments_enabled: true, visibility: "private", version_count: 2 });
     expect(after.last_updated_at).not.toBeNull();
     expect(await pagers.html(env, slug)).toBe(doc("Two"));
     expect(await pagers.html(env, slug, 1)).toBe(doc("One"));
@@ -50,18 +50,18 @@ describe("pagers", () => {
     expect(vs.map((v) => v.version_number)).toEqual([2, 1]);
   });
 
-  it("restores an old version as a new one and keeps the live eyes_only", async () => {
+  it("restores an old version as a new one and keeps the live visibility", async () => {
     const owner = who();
     const { slug } = await pagers.publish(env, owner, {
-      html: doc("Old"), filename: "old.html", title: "Old", comments_enabled: false, eyes_only: false,
+      html: doc("Old"), filename: "old.html", title: "Old", comments_enabled: false, visibility: "signed_in",
     });
     await pagers.republish(env, (await pagers.get(env, slug))!, owner, {
-      html: doc("New"), filename: "new.html", title: "New", comments_enabled: true, eyes_only: true,
+      html: doc("New"), filename: "new.html", title: "New", comments_enabled: true, visibility: "private",
     });
     const restored = await pagers.restore(env, (await pagers.get(env, slug))!, owner, 1);
     expect(restored).toMatchObject({ version_number: 3, restored_from_version: 1, title: "Old", comments_enabled: false });
     const meta = (await pagers.get(env, slug))!;
-    expect(meta).toMatchObject({ version_count: 3, title: "Old", eyes_only: true, comments_enabled: false });
+    expect(meta).toMatchObject({ version_count: 3, title: "Old", visibility: "private", comments_enabled: false });
     expect(await pagers.html(env, slug)).toBe(doc("Old"));
     expect(await pagers.restore(env, meta, owner, 9)).toBeNull();
   });
@@ -69,10 +69,10 @@ describe("pagers", () => {
   it("deletes every row and blob that belongs to a pager", async () => {
     const owner = who();
     const { slug } = await pagers.publish(env, owner, {
-      html: doc("Gone"), filename: "g.html", title: null, comments_enabled: true, eyes_only: null,
+      html: doc("Gone"), filename: "g.html", title: null, comments_enabled: true, visibility: null,
     });
     await pagers.republish(env, (await pagers.get(env, slug))!, owner, {
-      html: doc("Gone2"), filename: "g.html", title: null, comments_enabled: null, eyes_only: null,
+      html: doc("Gone2"), filename: "g.html", title: null, comments_enabled: null, visibility: null,
     });
     await grants.put(env, slug, "X@Y.test", "viewer", owner.id);
     await views.record(env, slug, "github:v");
@@ -94,8 +94,8 @@ describe("pagers", () => {
   it("lists owned pagers then shared ones, and filters by search terms", async () => {
     const owner = who();
     const other = who();
-    const mine = await pagers.publish(env, owner, { html: doc("Zebra facts"), filename: "z.html", title: "Mine", comments_enabled: null, eyes_only: null });
-    const theirs = await pagers.publish(env, other, { html: doc("Other"), filename: "o.html", title: "Theirs", comments_enabled: null, eyes_only: null });
+    const mine = await pagers.publish(env, owner, { html: doc("Zebra facts"), filename: "z.html", title: "Mine", comments_enabled: null, visibility: null });
+    const theirs = await pagers.publish(env, other, { html: doc("Other"), filename: "o.html", title: "Theirs", comments_enabled: null, visibility: null });
     await grants.put(env, theirs.slug, "me@x.test", "contributor", other.id);
 
     const all = await pagers.listFor(env, owner, "me@x.test", null);

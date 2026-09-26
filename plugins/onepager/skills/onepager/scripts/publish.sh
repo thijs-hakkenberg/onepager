@@ -2,7 +2,7 @@
 # Publish a single-file HTML page to OnePager, or a new version of an existing one.
 #
 #   publish.sh FILE [--slug S] [--title T] [--comments|--no-comments]
-#                   [--eyes-only|--not-eyes-only] [--group G]
+#                   [--visibility private|signed_in|public] [--group G]
 #
 # Prints the API's JSON answer ({"slug", "url", "version_number", "is_update", ...}).
 # Exits non-zero, with the error body on stdout, on any HTTP error.
@@ -33,8 +33,9 @@ while [ $# -gt 0 ]; do
     --group) args+=(--arg group "${2:?--group needs a value}"); filter+=' + {group_slug: $group}'; shift 2 ;;
     --comments) filter+=' + {comments_enabled: true}'; shift ;;
     --no-comments) filter+=' + {comments_enabled: false}'; shift ;;
-    --eyes-only) filter+=' + {eyes_only: true}'; shift ;;
-    --not-eyes-only) filter+=' + {eyes_only: false}'; shift ;;
+    --visibility) args+=(--arg visibility "${2:?--visibility needs a value}"); filter+=' + {visibility: $visibility}'; shift 2 ;;
+    --eyes-only) filter+=' + {visibility: "private"}'; shift ;;
+    --not-eyes-only) filter+=' + {visibility: "signed_in"}'; shift ;;
     *) echo "Unknown option: $1" >&2; usage ;;
   esac
 done

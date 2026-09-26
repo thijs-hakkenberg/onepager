@@ -1,4 +1,5 @@
 import { toSearchText } from "../html/to_text";
+import type { Visibility } from "./access";
 import { sha256Hex } from "../lib/random";
 import { now } from "../lib/time";
 import { generateSlug } from "./slug";
@@ -13,7 +14,7 @@ export interface PagerMeta {
   size_bytes: number;
   content_sha256: string;
   comments_enabled: boolean;
-  eyes_only: boolean;
+  visibility: Visibility;
   version_count: number;
   search_text: string;
   created_at: string;
@@ -37,15 +38,15 @@ export interface PublishInput {
   filename: string;
   title: string | null;
   comments_enabled: boolean | null;
-  eyes_only: boolean | null;
+  visibility: Visibility | null;
 }
 
 export class ConflictError extends Error {}
 
-const toMeta = (r: Record<string, any>): PagerMeta => ({
+// eyes_only is a legacy column kept in step with visibility (migrations/0002); never read.
+const toMeta = ({ eyes_only: _, ...r }: Record<string, any>): PagerMeta => ({
   ...(r as PagerMeta),
   comments_enabled: bool(r.comments_enabled),
-  eyes_only: bool(r.eyes_only),
 });
 
 const toVersion = (r: Record<string, any>): VersionRow => ({
@@ -98,19 +99,19 @@ async function withBlob<T>(env: Store, key: string, bytes: Uint8Array, write: ()
   }
 }
 
-const insertVersion = (env: Store, slug: string, n: number, by: string, at: string, v: Omit<VersionRow, "version_number" | "published_by_oid" | "published_at">, eyesOnly: boolean) =>
+const insertVersion = (env: Store, slug: string, n: number, by: string, at: string, v: Omit<VersionRow, "version_number" | "published_by_oid" | "published_at">, visibility: Visibility) =>
   env.DB.prepare(
     `INSERT INTO versions (slug, n, published_by, published_at, size_bytes, content_sha256, title,
-       original_filename, comments_enabled, eyes_only, restored_from_version)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       original_filename, comments_enabled, visibility, eyes_only, restored_from_version)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(slug, n, by, at, v.size_bytes, v.content_sha256, v.title, v.original_filename,
-    v.comments_enabled ? 1 : 0, eyesOnly ? 1 : 0, v.restored_from_version);
+    v.comments_enabled ? 1 : 0, visibility, visibility === "private" ? 1 : 0, v.restored_from_version);
 
 export async function publish(env: Store, owner: Actor, input: PublishInput) {
   const d = await describe(input.html);
   const title = input.title ?? defaultTitle(input.filename);
   const comments = input.comments_enabled ?? false;
-  const eyesOnly = input.eyes_only ?? false;
+  const visibility = input.visibility ?? "signed_in";
   for (let attempt = 0; attempt < 5; attempt++) {
     const slug = generateSlug();
     if (await get(env, slug)) continue;
@@ -120,13 +121,14 @@ export async function publish(env: Store, owner: Actor, input: PublishInput) {
         env.DB.batch([
           env.DB.prepare(
             `INSERT INTO onepagers (slug, owner_id, title, original_filename, size_bytes, content_sha256,
-               comments_enabled, eyes_only, version_count, search_text, created_at, last_updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, NULL)`,
-          ).bind(slug, owner.id, title, input.filename, d.size_bytes, d.content_sha256, comments ? 1 : 0, eyesOnly ? 1 : 0, d.search_text, at),
+               comments_enabled, visibility, eyes_only, version_count, search_text, created_at, last_updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, NULL)`,
+          ).bind(slug, owner.id, title, input.filename, d.size_bytes, d.content_sha256, comments ? 1 : 0,
+            visibility, visibility === "private" ? 1 : 0, d.search_text, at),
           insertVersion(env, slug, 1, owner.id, at, {
             size_bytes: d.size_bytes, content_sha256: d.content_sha256, title,
             original_filename: input.filename, comments_enabled: comments, restored_from_version: null,
-          }, eyesOnly),
+          }, visibility),
         ]),
       );
       return { slug, version_number: 1 };
@@ -139,19 +141,19 @@ export async function publish(env: Store, owner: Actor, input: PublishInput) {
 
 // The version insert carries the concurrency check: two republishes racing for the
 // same n collide on the (slug, n) primary key and the batch rolls back as a unit.
-async function appendVersion(env: Store, meta: PagerMeta, by: string, bytes: Uint8Array, v: Omit<VersionRow, "version_number" | "published_by_oid" | "published_at">, eyesOnly: boolean, searchText: string) {
+async function appendVersion(env: Store, meta: PagerMeta, by: string, bytes: Uint8Array, v: Omit<VersionRow, "version_number" | "published_by_oid" | "published_at">, visibility: Visibility, searchText: string) {
   const n = meta.version_count + 1;
   const at = now();
   try {
     await withBlob(env, blobKey(meta.slug, n), bytes, () =>
       env.DB.batch([
-        insertVersion(env, meta.slug, n, by, at, v, eyesOnly),
+        insertVersion(env, meta.slug, n, by, at, v, visibility),
         env.DB.prepare(
           `UPDATE onepagers SET title = ?, original_filename = ?, size_bytes = ?, content_sha256 = ?,
-             comments_enabled = ?, eyes_only = ?, version_count = ?, search_text = ?, last_updated_at = ?
+             comments_enabled = ?, visibility = ?, eyes_only = ?, version_count = ?, search_text = ?, last_updated_at = ?
            WHERE slug = ?`,
         ).bind(v.title, v.original_filename, v.size_bytes, v.content_sha256, v.comments_enabled ? 1 : 0,
-          eyesOnly ? 1 : 0, n, searchText, at, meta.slug),
+          visibility, visibility === "private" ? 1 : 0, n, searchText, at, meta.slug),
       ]),
     );
   } catch (err) {
@@ -167,7 +169,7 @@ export async function republish(env: Store, meta: PagerMeta, by: Actor, input: P
     size_bytes: d.size_bytes, content_sha256: d.content_sha256, title: input.title ?? meta.title,
     original_filename: input.filename, comments_enabled: input.comments_enabled ?? meta.comments_enabled,
     restored_from_version: null,
-  }, input.eyes_only ?? meta.eyes_only, d.search_text);
+  }, input.visibility ?? meta.visibility, d.search_text);
   return { slug: meta.slug, version_number: n };
 }
 
@@ -180,8 +182,14 @@ export async function restore(env: Store, meta: PagerMeta, by: Actor, from: numb
     size_bytes: source.size_bytes, content_sha256: source.content_sha256, title: source.title,
     original_filename: source.original_filename, comments_enabled: source.comments_enabled, restored_from_version: from,
   };
-  const { n, at } = await appendVersion(env, meta, by.id, new TextEncoder().encode(content), v, meta.eyes_only, await toSearchText(content));
+  const { n, at } = await appendVersion(env, meta, by.id, new TextEncoder().encode(content), v, meta.visibility, await toSearchText(content));
   return { version_number: n, published_by_oid: by.id, published_at: at, ...v };
+}
+
+/** Changes who may look without publishing a new version. */
+export async function setVisibility(env: Store, slug: string, visibility: Visibility): Promise<void> {
+  await env.DB.prepare("UPDATE onepagers SET visibility = ?, eyes_only = ? WHERE slug = ?")
+    .bind(visibility, visibility === "private" ? 1 : 0, slug).run();
 }
 
 export async function versions(env: Store, slug: string): Promise<VersionRow[]> {
@@ -219,6 +227,8 @@ export interface ListingRow {
   content_sha256: string;
   created_at: string;
   comments_enabled: boolean;
+  visibility: Visibility;
+  /** Deprecated: `visibility === "private"`, kept for API clients that predate visibility. */
   eyes_only: boolean;
   version_count: number;
   last_updated_at: string;
@@ -246,7 +256,8 @@ export async function listFor(env: Store, caller: { id: string }, email: string 
     rows.push({
       owner_oid: meta.owner_id, slug: meta.slug, title: meta.title, original_filename: meta.original_filename,
       size_bytes: meta.size_bytes, content_sha256: meta.content_sha256, created_at: meta.created_at,
-      comments_enabled: meta.comments_enabled, eyes_only: meta.eyes_only, version_count: meta.version_count,
+      comments_enabled: meta.comments_enabled, visibility: meta.visibility,
+      eyes_only: meta.visibility === "private", version_count: meta.version_count,
       last_updated_at: meta.last_updated_at ?? meta.created_at, role: r.role as ListingRow["role"],
       ...(ts.length ? { matched_content: matchedContent(meta, ts) } : {}),
     });

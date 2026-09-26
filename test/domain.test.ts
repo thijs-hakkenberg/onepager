@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateSlug, isValidSlug } from "../src/domain/slug";
 import { hashSecret, mintToken, parseBearer } from "../src/auth/token";
-import { canContribute, canView, isOwner } from "../src/domain/access";
+import { canContribute, canView, isOwner, isPublic } from "../src/domain/access";
 import { validate } from "../src/lib/params";
 import { matchedContent, matches, terms } from "../src/domain/search";
 
@@ -45,12 +45,19 @@ describe("token", () => {
 });
 
 describe("access", () => {
-  const pub = { slug: "s", owner_id: "u:owner", eyes_only: false };
-  const priv = { ...pub, eyes_only: true };
+  const pub = { slug: "s", owner_id: "u:owner", visibility: "signed_in" as const };
+  const priv = { ...pub, visibility: "private" as const };
+  const open = { ...pub, visibility: "public" as const };
   const owner = { id: "u:owner" };
   const other = { id: "u:other" };
 
-  it("public pagers are visible to any signed-in caller without a grant lookup", async () => {
+  it("isPublic: public pagers always, PUBLIC_SLUGS unless private, signed-in pagers otherwise never", () => {
+    expect(isPublic({}, open)).toBe(true);
+    expect(isPublic({}, pub)).toBe(false);
+    expect(isPublic({ PUBLIC_SLUGS: "x, s" }, pub)).toBe(true);
+    expect(isPublic({ LAUNCH_SLUG: "s" }, priv)).toBe(false);
+  });
+  it("signed-in pagers are visible to any signed-in caller without a grant lookup", async () => {
     const lookup = async () => {
       throw new Error("should not be called");
     };
@@ -64,7 +71,7 @@ describe("access", () => {
     expect(await canView(priv, other, "x@y", async () => "viewer")).toBe(true);
     expect(await canView(priv, other, "x@y", async () => "contributor")).toBe(true);
   });
-  it("contribute ignores eyes_only and needs the contributor role", async () => {
+  it("contribute ignores visibility and needs the contributor role", async () => {
     expect(await canContribute(pub, owner, null, async () => null)).toBe(true);
     expect(await canContribute(pub, other, "x@y", async () => "viewer")).toBe(false);
     expect(await canContribute(pub, other, "x@y", async () => "contributor")).toBe(true);

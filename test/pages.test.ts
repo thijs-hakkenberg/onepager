@@ -14,7 +14,9 @@ describe("viewer", () => {
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res.headers.get("referrer-policy")).toBe("no-referrer");
     expect(res.headers.get("cache-control")).toBe("private, max-age=60");
-    expect(await res.text()).toBe("<p>hi</p><script>1</script>");
+    // The owner's view ends with their visibility pill; anyone else gets the bytes as stored.
+    expect(await res.text()).toMatch(/^<p>hi<\/p><script>1<\/script><link rel="stylesheet" href="\/visibility.css">/);
+    expect(await (await page(`/p/${body.slug}`, await person())).text()).toBe("<p>hi</p><script>1</script>");
     expect((await page(`/p/${body.slug}/raw`, p)).status).toBe(404);
   });
 
@@ -130,5 +132,71 @@ describe("tokens page", () => {
     expect(html).toContain("Plugin tokens");
     expect(html).toContain('src="/tokens.js"');
     expect(html).toMatch(/<code>[A-Za-z0-9]{12}<\/code>/);
+  });
+});
+
+describe("visibility", () => {
+  const anon = (path: string) => call(path);
+
+  it("public pages need no sign-in, and only the owner sees the banner", async () => {
+    const owner = await person();
+    const other = await person();
+    const { res, body } = await publish(owner, { html: "<p>open</p>", visibility: "public" });
+    expect(body.visibility).toBe("public");
+    expect(res.status).toBe(201);
+
+    const bare = await anon(`/p/${body.slug}`);
+    expect(bare.status).toBe(200);
+    expect(await bare.text()).toBe("<p>open</p>");
+    expect((await anon(`/api/v1/onepagers/${body.slug}/llm.txt`)).status).toBe(200);
+
+    const mine = await (await page(`/p/${body.slug}`, owner)).text();
+    expect(mine.startsWith("<p>open</p>")).toBe(true);
+    expect(mine).toContain('class="onepager-vis onepager-vis-public"');
+    expect(await (await page(`/p/${body.slug}`, other)).text()).toBe("<p>open</p>");
+  });
+
+  it("puts the owner's pill in the comments wrapper, for every level", async () => {
+    const owner = await person();
+    const { body } = await publish(owner, { comments_enabled: true, eyes_only: true });
+    const html = await (await page(`/p/${body.slug}`, owner)).text();
+    expect(html).toContain("onepager-vis-private");
+    expect(html).toContain('id="comments-toggle"');
+  });
+
+  it("lets only the owner change visibility in place, without a new version", async () => {
+    const owner = await person();
+    const other = await person();
+    const { body } = await publish(owner);
+    expect((await anon(`/p/${body.slug}`)).status).toBe(302);
+
+    const patch = (as: typeof owner, visibility: unknown, via: "bearer" | "cookie" = "bearer") =>
+      call(`/api/v1/onepagers/${body.slug}`, { method: "PATCH", as, via, json: { visibility } });
+    expect((await patch(other, "public")).status).toBe(403);
+    const bad = await patch(owner, "everyone");
+    expect(bad.status).toBe(400);
+    expect(((await bad.json()) as any).details[0].loc).toEqual(["visibility"]);
+
+    const ok = await patch(owner, "public", "cookie");
+    expect(await ok.json()).toEqual({ slug: body.slug, visibility: "public" });
+    expect((await anon(`/p/${body.slug}`)).status).toBe(200);
+
+    expect((await patch(owner, "private")).status).toBe(200);
+    expect((await anon(`/p/${body.slug}`)).status).toBe(302);
+    expect((await page(`/p/${body.slug}`, other)).status).toBe(403);
+
+    const list = (await (await call("/api/v1/onepagers", { as: owner })).json()) as any;
+    expect(list.onepagers[0]).toMatchObject({ slug: body.slug, visibility: "private", eyes_only: true, version_count: 1 });
+  });
+
+  it("maps the legacy eyes_only flag, and a republish keeps visibility unless told otherwise", async () => {
+    const owner = await person();
+    const { body } = await publish(owner, { visibility: "public" });
+    const again = await publish(owner, { slug: body.slug, html: "<p>v2</p>" });
+    expect(again.body.visibility).toBe("public");
+    const legacy = await publish(owner, { slug: body.slug, eyes_only: false });
+    expect(legacy.body.visibility).toBe("signed_in");
+    const both = await publish(owner, { slug: body.slug, eyes_only: true, visibility: "public" });
+    expect(both.body.visibility).toBe("public");
   });
 });

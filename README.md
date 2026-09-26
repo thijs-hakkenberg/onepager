@@ -35,8 +35,11 @@ The skill targets the instance above. Set `ONEPAGER_BASE_URL` to point it at you
   OnePager Claude Code plugin). Tokens are minted at `/settings/tokens`.
 - **Viewing**: `/p/<slug>` serves the page under a sandboxing CSP, optionally beside a
   comments sidebar where readers anchor comments to a text selection.
-- **Access**: every signed-in user can view a normal page. An *eyes-only* page is visible
-  to its owner and to the emails it has been shared with. `contributor` grants may
+- **Access**: each page has a visibility level. `signed_in` (the default): any signed-in
+  user can view it. `private` (eyes only): its owner and the emails it has been shared
+  with. `public`: anyone with the link, no sign-in, including its `llm.txt`. The owner
+  sees the level as a pill on the page (a strip across the top when public) and can
+  change it from the dashboard or with `PATCH /api/v1/onepagers/<slug>`. `contributor` grants may
   republish. Groups (`/g/<group>`) are curated galleries and never grant access.
 
 ## Layout
@@ -102,8 +105,8 @@ Configuration (`vars` in `wrangler.jsonc`):
 | Var | Meaning |
 |---|---|
 | `PUBLIC_BASE_URL` | Origin used in OAuth callbacks, returned URLs and the Origin check |
-| `LAUNCH_SLUG` | If set, `/` serves that page to everyone, signed in or not (a landing page). If it is unset, missing or eyes-only, `/` redirects to `/me` |
-| `PUBLIC_SLUGS` | Comma-separated slugs that anyone may read without signing in: `/p/<slug>` (without the comments sidebar) and its `llm.txt`. Eyes-only pages are never public. The launch page is always public |
+| `LAUNCH_SLUG` | If set, `/` serves that page to everyone, signed in or not (a landing page). If it is unset, missing or private, `/` redirects to `/me` |
+| `PUBLIC_SLUGS` | Comma-separated slugs that anyone may read without signing in: `/p/<slug>` (without the comments sidebar) and its `llm.txt`. Private pages are never public. The launch page is always public. Pages published as `public` need no entry here |
 | `MAX_HTML_BYTES` | Upload cap (default 5 MiB, sized for the free-tier CPU budget) |
 
 ## Publishing from the CLI / plugin
