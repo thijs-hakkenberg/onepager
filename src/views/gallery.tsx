@@ -1,4 +1,5 @@
 import type { PagerMeta } from "../domain/pagers";
+import { VisibilityPill } from "./dashboard";
 import { Layout, type Viewer } from "./layout";
 
 export const Gallery = (props: { user: Viewer; name: string; cards: PagerMeta[] }) => (
@@ -13,7 +14,7 @@ export const Gallery = (props: { user: Viewer; name: string; cards: PagerMeta[] 
       {props.cards.map((m) => (
         <a class="card" href={`/p/${m.slug}`}>
           <div class="title">
-            {m.title} {m.eyes_only && <span class="badge">private</span>}
+            {m.title} {m.visibility !== "signed_in" && <VisibilityPill v={m.visibility} />}
           </div>
           <div class="muted"><code>{m.slug}</code></div>
           <div class="muted small">

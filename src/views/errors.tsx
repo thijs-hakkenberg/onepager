@@ -14,7 +14,7 @@ export const NoPager = ({ slug }: { slug: string }) => (
 export const Private = ({ slug }: { slug: string }) => (
   <Notice title="Private OnePager — you don't have access" heading="This OnePager is private.">
     <p>
-      The OnePager at <code>/p/{slug}</code> is eyes-only — its owner has limited who can see it, and your account
+      The OnePager at <code>/p/{slug}</code> is eyes only — its owner has limited who can see it, and your account
       isn't on the list.
     </p>
     <p>

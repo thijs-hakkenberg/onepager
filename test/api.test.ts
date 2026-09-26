@@ -40,7 +40,7 @@ describe("POST /api/v1/onepagers", () => {
     const p = await person();
     const { res, body } = await publish(p);
     expect(res.status).toBe(201);
-    expect(body).toEqual({ slug: body.slug, url: `${BASE}/p/${body.slug}`, version_number: 1, is_update: false, group_slug: null });
+    expect(body).toEqual({ slug: body.slug, url: `${BASE}/p/${body.slug}`, version_number: 1, is_update: false, group_slug: null, visibility: "signed_in" });
   });
 
   it("reports pydantic-style validation details", async () => {
@@ -71,7 +71,8 @@ describe("POST /api/v1/onepagers", () => {
     const { body } = await publish(p, { html: '<base href="https://e.x/"><iframe src="https://e.x"></iframe><p>ok</p>' });
     const res = await call(`/api/v1/onepagers/${body.slug}/llm.txt`, { as: p });
     expect(await res.text()).toContain("ok");
-    const page = await call(`/p/${body.slug}`, { as: p, via: "cookie" });
+    const reader = await person();
+    const page = await call(`/p/${body.slug}`, { as: reader, via: "cookie" });
     expect(await page.text()).toBe("<p>ok</p>");
   });
 
@@ -96,7 +97,7 @@ describe("POST /api/v1/onepagers", () => {
 
     const ok = await publish(editor, { slug: body.slug, html: "<p>v2</p>" });
     expect(ok.res.status).toBe(200);
-    expect(ok.body).toEqual({ slug: body.slug, url: `${BASE}/p/${body.slug}`, version_number: 2, is_update: true });
+    expect(ok.body).toEqual({ slug: body.slug, url: `${BASE}/p/${body.slug}`, version_number: 2, is_update: true, visibility: "signed_in" });
 
     const denied = await publish(viewer, { slug: body.slug });
     expect(denied.res.status).toBe(403);
@@ -132,7 +133,7 @@ describe("GET /api/v1/onepagers", () => {
     expect(all.onepagers.map((r: any) => [r.slug, r.role])).toEqual([[mine.body.slug, "owner"], [theirs.body.slug, "viewer"]]);
     expect(Object.keys(all.onepagers[0]).sort()).toEqual([
       "comments_enabled", "content_sha256", "created_at", "eyes_only", "last_updated_at", "original_filename",
-      "owner_oid", "role", "size_bytes", "slug", "title", "version_count",
+      "owner_oid", "role", "size_bytes", "slug", "title", "version_count", "visibility",
     ]);
 
     const hit = (await (await call("/api/v1/onepagers?q=zebra", { as: me })).json()) as any;

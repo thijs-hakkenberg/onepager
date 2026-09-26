@@ -1,3 +1,4 @@
+import { VISIBILITIES, VISIBILITY_LABEL, type Visibility } from "../domain/access";
 import type { ListingRow } from "../domain/pagers";
 import { Layout, type Viewer } from "./layout";
 
@@ -5,6 +6,10 @@ export interface DashboardRow extends ListingRow {
   groups: string[];
   views: number;
 }
+
+export const VisibilityPill = ({ v }: { v: Visibility }) => (
+  <span class={`vis vis-${v}`} title={VISIBILITY_LABEL[v].who}>{VISIBILITY_LABEL[v].name}</span>
+);
 
 const href = (group: string, q: string) => {
   const p = new URLSearchParams();
@@ -55,6 +60,7 @@ export function Dashboard(props: {
             <th>Slug</th>
             <th>Groups</th>
             <th>Role</th>
+            <th>Visibility</th>
             <th>Created</th>
             <th>Views</th>
             <th />
@@ -63,7 +69,7 @@ export function Dashboard(props: {
         <tbody>
           {props.rows.length === 0 && (
             <tr>
-              <td colspan={7}>
+              <td colspan={8}>
                 <em>
                   {props.q || props.group
                     ? "Nothing matches."
@@ -76,7 +82,6 @@ export function Dashboard(props: {
             <tr id={`row-${r.slug}`}>
               <td>
                 <a href={`/p/${r.slug}`}>{r.title}</a>
-                {r.eyes_only && <span class="badge">private</span>}
                 {r.matched_content && <span class="badge soft">content match</span>}
               </td>
               <td><code>{r.slug}</code></td>
@@ -84,6 +89,17 @@ export function Dashboard(props: {
                 {r.groups.length === 0 ? <span class="muted">—</span> : r.groups.map((g) => <a href={`/g/${g}`} class="gap">{names.get(g) ?? g}</a>)}
               </td>
               <td>{r.role}</td>
+              <td>
+                {r.role === "owner" ? (
+                  <select class={`vis vis-${r.visibility}`} data-visibility={r.slug} data-current={r.visibility} aria-label="Who can see this">
+                    {VISIBILITIES.map((v) => (
+                      <option value={v} selected={v === r.visibility} title={VISIBILITY_LABEL[v].who}>{VISIBILITY_LABEL[v].name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <VisibilityPill v={r.visibility} />
+                )}
+              </td>
               <td>{r.created_at.slice(0, 10)}</td>
               <td>{r.views === 0 ? <span class="muted">Never viewed</span> : r.views}</td>
               <td class="actions">

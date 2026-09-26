@@ -14,6 +14,12 @@
   const box = form.querySelector("textarea");
   const anchorLine = document.getElementById("anchor-line");
   const cancel = document.getElementById("cancel-anchor");
+  const toggle = document.getElementById("comments-toggle");
+  const toggleLabel = document.getElementById("comments-label");
+  const countEl = document.getElementById("comments-count");
+  const closeBtn = document.getElementById("sidebar-close");
+  // Matches the sheet breakpoint in app.css. Above it the sidebar is always open.
+  const narrow = window.matchMedia("(max-width: 1024px)");
   const base = "/p/" + encodeURIComponent(sidebar.dataset.slug) + "/comments";
 
   let all = [];
@@ -59,6 +65,21 @@
     else if (pending) anchorLine.textContent = "Anchor: " + pending.snippet.slice(0, 60);
     else anchorLine.textContent = "Anchor: page (general)";
     cancel.hidden = !(replyTo || pending);
+    renderToggle();
+  }
+
+  // The sheet on phones and tablets. A tap in the page only arms the button
+  // ("Comment on this"); the sheet opens when the reader asks for it.
+  function setOpen(open) {
+    document.body.classList.toggle("sheet-open", open);
+    toggle.setAttribute("aria-expanded", String(open));
+  }
+
+  function renderToggle() {
+    toggleLabel.textContent = pending ? "Comment on “" + pending.snippet.slice(0, 24) + "”" : "Comments";
+    const open = all.filter((c) => !c.parent_comment_id && !c.resolved_at).length;
+    countEl.textContent = String(open);
+    countEl.hidden = !open || !!pending;
   }
 
   function computeCounts() {
@@ -123,6 +144,7 @@
     all = list;
     counts = computeCounts();
     render();
+    renderToggle();
     postCounts();
   }
 
@@ -173,6 +195,12 @@
   });
 
   cancel.addEventListener("click", () => { pending = null; replyTo = null; renderAnchorLine(); });
+  toggle.addEventListener("click", () => {
+    setOpen(true);
+    if (pending) box.focus();
+  });
+  closeBtn.addEventListener("click", () => setOpen(false));
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") setOpen(false); });
 
   function focusThread(selector) {
     const t = Array.from(threadsEl.querySelectorAll("[data-anchor]")).find((n) => n.dataset.anchor === selector);
@@ -195,6 +223,7 @@
       lost = new Set(data.lost.filter((s) => typeof s === "string"));
       render();
     } else if (data.type === "onepager:focus") {
+      if (narrow.matches) setOpen(true);
       focusThread(data.selector);
     }
   });

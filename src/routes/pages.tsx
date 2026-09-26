@@ -10,6 +10,7 @@ import * as tokens from "../domain/tokens";
 import * as views from "../domain/views";
 import type { AppEnv, Caller } from "../env";
 import { SELECTION_SHIM } from "../html/shim";
+import { visibilityBadge } from "../html/visibility_badge";
 import { track } from "../lib/analytics";
 import { forbidden, jsonBody, noContent, notFound, validationFailed } from "../lib/http";
 import { validate } from "../lib/params";
@@ -79,20 +80,22 @@ const publicView = createMiddleware<AppEnv>(async (c, next) => {
   await next();
 });
 
+// The owner always sees who else can: a pill, or a strip across the top when public.
 pages.get("/p/:slug", publicView, browser, async (c) => {
   const slug = c.req.param("slug");
   const meta = await viewable(c, slug);
   if (meta instanceof Response) return meta;
+  const badge = isOwner(meta, c.var.caller) ? visibilityBadge(slug, meta.visibility) : "";
   if (meta.comments_enabled) {
     await recordView(c, slug);
     track(c, "OnePager Viewed", { slug, comments_enabled: true });
-    return page(c, <Wrapper slug={slug} title={meta.title} />, 200, { "cache-control": "private, max-age=60" });
+    return page(c, <Wrapper slug={slug} title={meta.title} badge={badge} />, 200, { "cache-control": "private, max-age=60" });
   }
   const html = await pagers.html(c.env, slug);
   if (html === null) return noPager(c, slug);
   await recordView(c, slug);
   track(c, "OnePager Viewed", { slug, comments_enabled: false });
-  return c.html(html, 200, hardened("'none'"));
+  return c.html(html + badge, 200, hardened("'none'"));
 });
 
 // The iframe inside the comments wrapper. It exists only for pagers with comments

@@ -49,11 +49,22 @@ scripts/publish.sh report.html --slug k3x9ab12                   # new version o
 ```
 
 Options: `--slug S` (update that page), `--title T`, `--comments` / `--no-comments`
-(sidebar, default off), `--eyes-only` / `--not-eyes-only` (default: any signed-in user
-with the link can view), `--group G` (also add the page to your group `G`). On an
-update, options you leave out keep their previous values.
+(sidebar, default off), `--visibility V`, `--group G` (also add the page to your group
+`G`). On an update, options you leave out keep their previous values.
 
-It prints `{"slug": ..., "url": ..., "version_number": ..., "is_update": ...}`. Give the
+`--visibility` sets who can look:
+
+| Level | Who can view |
+| --- | --- |
+| `private` | The owner and the people it is shared with (`--eyes-only` is the old spelling) |
+| `signed_in` | Anyone signed in to OnePager with the link. The default |
+| `public` | Anyone with the link, without signing in, and any agent fetching its `llm.txt` |
+
+Only use `public` when the user asks for a page anyone can open; say so when you
+publish it. The owner sees the level as a pill on their page, and a strip across the
+top when it is public.
+
+It prints `{"slug": ..., "url": ..., "version_number": ..., "is_update": ..., "visibility": ...}`. Give the
 user the `url`. Remember the `slug` for this file (tell the user too) so later edits
 update the same page instead of creating a new one. Before creating a page for a file
 you may have published earlier, list the user's pages (below) and look for its title.
@@ -85,6 +96,7 @@ TOKEN="${ONEPAGER_TOKEN:-$(cat ~/.config/onepager/token)}"
 | Version history | `GET /api/v1/onepagers/<slug>/versions` |
 | Restore a version (owner) | `POST /api/v1/onepagers/<slug>/versions/<n>/restore` |
 | Groups | `POST /api/v1/groups` with `{"group_slug": "q3", "name": "Q3"}`; `POST /api/v1/groups/<g>/members` with `{"pager_slug": "<slug>"}` |
+| Change who can view, without a new version (owner) | `PATCH /api/v1/onepagers/<slug>` with `{"visibility": "public"}` |
 | Delete a page (owner) | `DELETE /api/v1/onepagers/<slug>` |
 
 Every request takes `-H "Authorization: Bearer $TOKEN"`, and a JSON body also takes
@@ -97,7 +109,7 @@ confirm with the user first. Sharing sends no email; tell the user to pass the l
 | --- | --- |
 | 400 | Bad or missing field; `details` says which. Slugs are lowercase letters and digits. |
 | 401 | Token missing, revoked or mistyped: ask the user for a new one. |
-| 403 | Not the owner or a contributor, or an eyes-only page not shared with you. |
+| 403 | Not the owner or a contributor, or a private page not shared with you. |
 | 404 | No such page, version, group or share. |
 | 409 | Someone else published at the same moment: retry once. |
 | 413 | Page too large: shrink or externally host the images. |

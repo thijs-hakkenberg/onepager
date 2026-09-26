@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { requireCaller, resolveCaller } from "../auth/middleware";
-import { canContribute, canView, isOwner, isPublic, type Role } from "../domain/access";
+import { canContribute, canView, isOwner, isPublic, isVisibility, type Role, type Visibility } from "../domain/access";
 import * as comments from "../domain/comments";
 import * as grants from "../domain/grants";
 import * as groups from "../domain/groups";
@@ -18,12 +18,19 @@ import { iso8601 } from "../lib/time";
 
 export const SLUG_SHAPE = [(v: string) => isValidSlug(v), "slug must be lowercase alphanumeric"] as const;
 
+export const VISIBILITY_SHAPE = [isVisibility, "visibility must be one of private, signed_in, public"] as const;
+
+/** `visibility` wins; the legacy `eyes_only` flag maps onto private / signed_in. */
+const visibilityOf = (p: Record<string, any>): Visibility | null =>
+  p.visibility ?? (p.eyes_only === null ? null : p.eyes_only ? "private" : "signed_in");
+
 const PUBLISH: Spec[] = [
   { field: "html", min: 1 },
   { field: "filename", strip: true, min: 1 },
   { field: "title", optional: true, strip: true },
   { field: "comments_enabled", optional: true, type: "boolean" },
   { field: "eyes_only", optional: true, type: "boolean" },
+  { field: "visibility", optional: true, strip: true, shape: VISIBILITY_SHAPE },
   { field: "slug", optional: true, strip: true, min: 1, shape: SLUG_SHAPE },
   { field: "group_slug", optional: true, strip: true, min: 1, shape: SLUG_SHAPE },
 ];
@@ -68,13 +75,16 @@ api.post("/", requireCaller("bearer"), async (c) => {
     filename: p.filename,
     title: p.title || null,
     comments_enabled: p.comments_enabled,
-    eyes_only: p.eyes_only,
+    visibility: visibilityOf(p),
   };
 
   if (p.slug === null) {
     const { slug, version_number } = await pagers.publish(c.env, caller, input);
     if (p.group_slug !== null) await groups.addMember(c.env, p.group_slug, slug);
-    const out = { slug, url: pagerUrl(c.env.PUBLIC_BASE_URL, slug), version_number, is_update: false, group_slug: p.group_slug };
+    const out = {
+      slug, url: pagerUrl(c.env.PUBLIC_BASE_URL, slug), version_number, is_update: false, group_slug: p.group_slug,
+      visibility: input.visibility ?? "signed_in",
+    };
     if (key) await idem.save(c.env, caller.id, key, 201, out);
     track(c, "OnePager Published", { slug, is_update: false });
     return c.json(out, 201);
@@ -88,7 +98,10 @@ api.post("/", requireCaller("bearer"), async (c) => {
     const { version_number } = await pagers.republish(c.env, meta, caller, input);
     if (p.group_slug !== null) await groups.addMember(c.env, p.group_slug, meta.slug);
     track(c, "OnePager Published", { slug: meta.slug, is_update: true, version_number });
-    return c.json({ slug: meta.slug, url: pagerUrl(c.env.PUBLIC_BASE_URL, meta.slug), version_number, is_update: true }, 200);
+    return c.json({
+      slug: meta.slug, url: pagerUrl(c.env.PUBLIC_BASE_URL, meta.slug), version_number, is_update: true,
+      visibility: input.visibility ?? meta.visibility,
+    }, 200);
   } catch (err) {
     if (err instanceof pagers.ConflictError) return error(c, 409, CONFLICT);
     throw err;
@@ -108,6 +121,21 @@ api.delete("/:slug", requireCaller("any"), async (c) => {
   await pagers.remove(c.env, slug);
   track(c, "OnePager Deleted", { slug });
   return noContent(c);
+});
+
+// Who may look, changed in place: no new version. Owner only, like sharing.
+api.patch("/:slug", requireCaller("any"), async (c) => {
+  const slug = c.req.param("slug");
+  const meta = await pagers.get(c.env, slug);
+  if (!meta) return notFound(c, "OnePager", slug);
+  if (!isOwner(meta, c.var.caller)) return forbidden(c, "Forbidden — only the owner can change visibility");
+  const body = await jsonBody(c);
+  if (body instanceof Response) return body;
+  const v = validate(body, [{ field: "visibility", strip: true, shape: VISIBILITY_SHAPE }]);
+  if (!v.ok) return validationFailed(c, v.details);
+  await pagers.setVisibility(c.env, slug, v.values.visibility);
+  track(c, "OnePager Visibility Changed", { slug, from: meta.visibility, to: v.values.visibility });
+  return c.json({ slug, visibility: v.values.visibility }, 200);
 });
 
 // Public pages (see isPublic) are readable without credentials, so an agent can

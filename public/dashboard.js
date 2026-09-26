@@ -5,6 +5,28 @@
 
   const item = (text) => { const li = document.createElement("li"); li.textContent = text; return li; };
 
+  const WARN_PUBLIC = "Make this page public?\n\nAnyone with the link will be able to read it without signing in, " +
+    "and so can any agent that fetches its llm.txt.";
+
+  document.addEventListener("change", async (ev) => {
+    const t = ev.target;
+    if (!(t instanceof HTMLSelectElement) || !t.dataset.visibility) return;
+    const previous = t.dataset.current;
+    const next = t.value;
+    if (next === "public" && !confirm(WARN_PUBLIC)) { t.value = previous; return; }
+    t.disabled = true;
+    const res = await fetch("/api/v1/onepagers/" + encodeURIComponent(t.dataset.visibility), {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ visibility: next }),
+    });
+    t.disabled = false;
+    if (!res.ok) { t.value = previous; alert("Could not change visibility (" + res.status + ")."); return; }
+    t.dataset.current = next;
+    t.className = "vis vis-" + next;
+  });
+
   document.addEventListener("click", async (ev) => {
     const t = ev.target;
     if (!(t instanceof HTMLElement)) return;
