@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "onepager",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "onepager",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "onepager-html" }],
+  "vars": {
+    "PUBLIC_BASE_URL": "http://localhost:8787",
+    "LAUNCH_SLUG": "",
+    "MAX_HTML_BYTES": "5242880"
+  }
+  // Secrets (wrangler secret put / .dev.vars):
+  //   GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, MIXPANEL_TOKEN (optional)
+}
