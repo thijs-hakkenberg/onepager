@@ -1,1 +1,3 @@
-export default { fetch: () => new Response("todo") };
+import { app } from "./app";
+
+export default app;
