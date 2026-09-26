@@ -41,38 +41,33 @@ For local sign-in, register an OAuth app whose callback is
 
 ## Deploying
 
-CI (`.github/workflows/ci.yml`) typechecks and tests every PR and push. On push to `main`
-it applies the D1 migrations and runs `wrangler deploy`.
+CI (`.github/workflows/ci.yml`) typechecks and tests every PR and push. A push to `main`
+then deploys:
 
-One-time setup:
+1. `scripts/provision.sh` creates the D1 database `onepager` and the R2 bucket
+   `onepager-html` if they are missing. It writes their id and the public URL into the
+   CI copy of `wrangler.jsonc`.
+2. It applies the D1 migrations, then runs `wrangler deploy`.
+3. It pushes any OAuth secrets present in the repo to the Worker.
+4. It checks `/health`.
 
-1. **Create the resources**, then put the printed `database_id` in `wrangler.jsonc`:
-   ```sh
-   npx wrangler login
-   npx wrangler d1 create onepager
-   npx wrangler r2 bucket create onepager-html
-   ```
-2. **Set `PUBLIC_BASE_URL`** in `wrangler.jsonc` to the deployed origin, e.g.
-   `https://onepager.<your-subdomain>.workers.dev`.
-3. **Create the OAuth apps.** Enable one provider or both; a provider without credentials
-   is hidden from the login page.
-   - **GitHub:** Settings → Developer settings → OAuth Apps → *New OAuth App*.
-     - Homepage: `PUBLIC_BASE_URL`
-     - Callback: `PUBLIC_BASE_URL/auth/github/callback`
-   - **Google:** Cloud Console → APIs & Services → Credentials → *OAuth client ID* (Web
-     application).
-     - Authorised redirect URI: `PUBLIC_BASE_URL/auth/google/callback`
-4. **Store the Worker secrets:**
-   ```sh
-   npx wrangler secret put GITHUB_CLIENT_ID
-   npx wrangler secret put GITHUB_CLIENT_SECRET
-   npx wrangler secret put GOOGLE_CLIENT_ID
-   npx wrangler secret put GOOGLE_CLIENT_SECRET
-   npx wrangler secret put MIXPANEL_TOKEN     # optional analytics
-   ```
-5. **Add the GitHub Actions secrets** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
-   (repo → Settings → Secrets and variables → Actions). Create the API token from the
-   *Edit Cloudflare Workers* template, and add *Account → D1 → Edit* so migrations can run.
+The public URL is `https://onepager.<account-subdomain>.workers.dev`, unless you set a
+repo *variable* `PUBLIC_BASE_URL` (for example, a custom domain).
+
+One-time setup (repo → Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Created from the dashboard's *Edit Cloudflare Workers* template, plus **Account → D1 → Edit** |
+| `CLOUDFLARE_ACCOUNT_ID` | The hex id in `dash.cloudflare.com/<account-id>/…` |
+| `OAUTH_GITHUB_CLIENT_ID`, `OAUTH_GITHUB_CLIENT_SECRET` | From a GitHub OAuth App with callback `<URL>/auth/github/callback` |
+| `OAUTH_GOOGLE_CLIENT_ID`, `OAUTH_GOOGLE_CLIENT_SECRET` | From a Google OAuth client (Web) with redirect URI `<URL>/auth/google/callback` |
+| `MIXPANEL_TOKEN` | Optional analytics |
+
+Configure at least one OAuth provider; a provider without credentials is hidden from the
+login page. GitHub reserves the `GITHUB_` prefix for its own secrets, which is why these
+are prefixed `OAUTH_`. Alternatively, set the Worker secrets directly with
+`npx wrangler secret put GITHUB_CLIENT_ID` (and so on).
 
 Configuration (`vars` in `wrangler.jsonc`):
 
