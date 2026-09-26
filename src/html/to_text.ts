@@ -40,7 +40,7 @@ export async function toMarkdown(html: string): Promise<string> {
         const tag = el.tagName.toLowerCase();
         if (DROP.has(tag)) {
           drop++;
-          if (!VOID.has(tag) && !el.selfClosing) el.onEndTag(() => { flush(); drop = Math.max(0, drop - 1); });
+          if (!VOID.has(tag)) el.onEndTag(() => { flush(); drop = Math.max(0, drop - 1); });
           return;
         }
         // An unclosed <head> would otherwise swallow the whole document.
@@ -55,7 +55,7 @@ export async function toMarkdown(html: string): Promise<string> {
             link = { href: href === null ? null : decodeEntities(href), text: [] };
           }
         }
-        if (VOID.has(tag) || el.selfClosing) return;
+        if (VOID.has(tag)) return;
         el.onEndTag(() => {
           flush();
           if (drop > 0) return;

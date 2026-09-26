@@ -22,7 +22,7 @@ export function iframeSrcAllowed(raw: string | null, allowedHosts: readonly stri
 
 export async function sanitise(html: string, allowedHosts: readonly string[]): Promise<string> {
   const rewriter = new HTMLRewriter()
-    .on("base", { element: (el) => el.remove() })
+    .on("base", { element: (el) => void el.remove() })
     .on("meta", {
       element(el) {
         if ((el.getAttribute("http-equiv") ?? "").trim().toLowerCase() === "refresh") el.remove();
