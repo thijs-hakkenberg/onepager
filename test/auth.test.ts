@@ -138,4 +138,32 @@ describe("chrome", () => {
     expect((await root(hidden.body.slug)).headers.get("location")).toBe("/me");
     expect((await root("nosuchpage")).headers.get("location")).toBe("/me");
   });
+
+  it("lets anyone read PUBLIC_SLUGS pages and their llm.txt, but nothing else", async () => {
+    const p = await person();
+    const open = await publish(p, { html: "<h1>Skill</h1>", comments_enabled: true });
+    const other = await publish(p, { html: "<h1>Other</h1>" });
+    const hidden = await publish(p, { eyes_only: true });
+    const pub = { ...env, PUBLIC_SLUGS: ` ${open.body.slug}, ${hidden.body.slug}` };
+    const fetch = (path: string, headers: Record<string, string> = {}) =>
+      app.fetch(new Request(BASE + path, { headers }), pub, createExecutionContext());
+
+    const page = await fetch(`/p/${open.body.slug}`);
+    expect(page.status).toBe(200);
+    expect(await page.text()).toBe("<h1>Skill</h1>");
+    expect(page.headers.get("content-security-policy")).toMatch(/^sandbox allow-scripts[^;]*; frame-ancestors 'none'$/);
+    const llm = await fetch(`/api/v1/onepagers/${open.body.slug}/llm.txt`);
+    expect(llm.status).toBe(200);
+    expect(await llm.text()).toContain("# Skill");
+
+    for (const slug of [other.body.slug, hidden.body.slug, "nosuchpage"]) {
+      expect((await fetch(`/p/${slug}`)).headers.get("location")).toMatch(/^\/login/);
+      const denied = await fetch(`/api/v1/onepagers/${slug}/llm.txt`);
+      expect(denied.status).toBe(401);
+      expect(denied.headers.get("cache-control")).toBe("no-store");
+    }
+    // Signed in, the page is the normal wrapped view.
+    const wrapped = await fetch(`/p/${open.body.slug}`, { cookie: `op_session=${p.cookie}` });
+    expect(await wrapped.text()).toContain(`src="/p/${open.body.slug}/raw"`);
+  });
 });

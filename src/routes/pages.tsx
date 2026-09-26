@@ -1,6 +1,7 @@
 import { type Context, Hono } from "hono";
-import { requireCaller } from "../auth/middleware";
-import { canView, isOwner } from "../domain/access";
+import { createMiddleware } from "hono/factory";
+import { requireCaller, resolveCaller } from "../auth/middleware";
+import { canView, isOwner, isPublic } from "../domain/access";
 import * as comments from "../domain/comments";
 import * as grants from "../domain/grants";
 import * as groups from "../domain/groups";
@@ -55,18 +56,30 @@ function recordView(c: Context<AppEnv>, slug: string) {
   }
 }
 
-// The landing page. The operator picked LAUNCH_SLUG to greet visitors, so it is served
-// to anyone, signed in or not. An eyes-only or missing launch page falls back to /me.
-pages.get("/", async (c) => {
-  const slug = c.env.LAUNCH_SLUG;
+/** A public page's HTML, served to anyone; null when the slug is not public. */
+async function publicPage(c: Context<AppEnv>, slug: string | undefined): Promise<Response | null> {
   const meta = slug ? await pagers.get(c.env, slug) : null;
-  const html = meta && !meta.eyes_only ? await pagers.html(c.env, meta.slug) : null;
-  if (html === null) return c.redirect("/me", 302);
-  track(c, "Landing Viewed", { slug });
+  if (!meta || !isPublic(c.env, meta)) return null;
+  const html = await pagers.html(c.env, meta.slug);
+  if (html === null) return null;
+  track(c, "OnePager Viewed", { slug: meta.slug, anonymous: true });
   return c.html(html, 200, { ...hardened("'none'"), "cache-control": "public, max-age=60" });
+}
+
+// The landing page is LAUNCH_SLUG, served to anyone. Without one, / is the dashboard.
+pages.get("/", async (c) => (await publicPage(c, c.env.LAUNCH_SLUG)) ?? c.redirect("/me", 302));
+
+// Signed-out visitors see a public page bare (no comments sidebar); everyone else
+// falls through to the normal, signed-in view.
+const publicView = createMiddleware<AppEnv>(async (c, next) => {
+  if (!(await resolveCaller(c, "session"))) {
+    const res = await publicPage(c, c.req.param("slug"));
+    if (res) return res;
+  }
+  await next();
 });
 
-pages.get("/p/:slug", browser, async (c) => {
+pages.get("/p/:slug", publicView, browser, async (c) => {
   const slug = c.req.param("slug");
   const meta = await viewable(c, slug);
   if (meta instanceof Response) return meta;

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { requireCaller } from "../auth/middleware";
-import { canContribute, canView, isOwner, type Role } from "../domain/access";
+import { requireCaller, resolveCaller } from "../auth/middleware";
+import { canContribute, canView, isOwner, isPublic, type Role } from "../domain/access";
 import * as comments from "../domain/comments";
 import * as grants from "../domain/grants";
 import * as groups from "../domain/groups";
@@ -110,13 +110,23 @@ api.delete("/:slug", requireCaller("any"), async (c) => {
   return noContent(c);
 });
 
-api.get("/:slug/llm.txt", requireCaller("any"), async (c) => {
+// Public pages (see isPublic) are readable without credentials, so an agent can
+// fetch instructions with a bare curl. Anyone else gets the usual 401 first.
+api.get("/:slug/llm.txt", async (c) => {
   const slug = c.req.param("slug");
+  const caller = await resolveCaller(c, "any");
   const meta = await pagers.get(c.env, slug);
-  if (!meta) return notFound(c, "OnePager", slug);
-  const caller = c.var.caller;
-  if (!(await canView(meta, caller, caller.email, grants.lookup(c.env))))
-    return forbidden(c, "Forbidden — this OnePager is private");
+  if (!caller) {
+    if (!meta || !isPublic(c.env, meta)) {
+      c.header("cache-control", "no-store");
+      return error(c, 401, "Authentication required");
+    }
+  } else {
+    c.set("caller", caller);
+    if (!meta) return notFound(c, "OnePager", slug);
+    if (!(await canView(meta, caller, caller.email, grants.lookup(c.env))))
+      return forbidden(c, "Forbidden — this OnePager is private");
+  }
   let body = (await toMarkdown((await pagers.html(c.env, slug)) ?? "")).replace(/\n+$/, "") + "\n";
   if (meta.comments_enabled) body += `\n${commentsMarkdown(await comments.list(c.env, slug))}`;
   const header = [
