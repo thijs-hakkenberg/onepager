@@ -1,0 +1,9 @@
+{
+  "name": "onepager",
+  "version": "0.1.0",
+  "description": "Publish, update, read and share single-file HTML pages on OnePager.",
+  "author": { "name": "Thijs Hakkenberg" },
+  "homepage": "https://onepager.prive-thijs-hakkenberg.workers.dev",
+  "repository": "https://github.com/thijs-hakkenberg/onepager",
+  "license": "MIT"
+}

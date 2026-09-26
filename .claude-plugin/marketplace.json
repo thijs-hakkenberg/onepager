@@ -1,0 +1,16 @@
+{
+  "name": "onepager",
+  "owner": {
+    "name": "Thijs Hakkenberg"
+  },
+  "metadata": {
+    "description": "The OnePager plugin for Claude Code: publish and share single-file HTML pages."
+  },
+  "plugins": [
+    {
+      "name": "onepager",
+      "source": "./plugins/onepager",
+      "description": "Publish, update, read and share single-file HTML pages on OnePager."
+    }
+  ]
+}
