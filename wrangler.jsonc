@@ -17,6 +17,7 @@
   "vars": {
     "PUBLIC_BASE_URL": "https://onepager.prive-thijs-hakkenberg.workers.dev",
     "LAUNCH_SLUG": "omx29vls",
+    "PUBLIC_SLUGS": "dfad9g7m",
     "MAX_HTML_BYTES": "5242880"
   }
   // Secrets (wrangler secret put / .dev.vars):

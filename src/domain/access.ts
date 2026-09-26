@@ -10,6 +10,13 @@ export interface PagerRef {
 export type Role = "viewer" | "contributor";
 export type RoleLookup = (slug: string, email: string) => Promise<Role | null>;
 
+/** The launch page and the PUBLIC_SLUGS pages may be read without signing in, unless eyes-only. */
+export function isPublic(env: { LAUNCH_SLUG?: string; PUBLIC_SLUGS?: string }, meta: PagerRef): boolean {
+  if (meta.eyes_only) return false;
+  const slugs = [env.LAUNCH_SLUG ?? "", ...(env.PUBLIC_SLUGS ?? "").split(",")].map((s) => s.trim());
+  return slugs.includes(meta.slug);
+}
+
 export const isOwner = (meta: PagerRef, caller: { id: string }) => meta.owner_id === caller.id;
 
 export async function canView(meta: PagerRef, caller: { id: string }, email: string | null, lookup: RoleLookup) {

@@ -4,6 +4,7 @@ export interface Bindings {
   ASSETS: Fetcher;
   PUBLIC_BASE_URL: string;
   LAUNCH_SLUG?: string;
+  PUBLIC_SLUGS?: string;
   MAX_HTML_BYTES?: string;
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;

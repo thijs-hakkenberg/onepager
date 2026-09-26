@@ -10,6 +10,16 @@ Sign in with GitHub or Google, mint a token at
 and publish with the `curl` example [below](#publishing-from-the-cli--plugin). It is a
 personal demo instance, so treat anything you publish there as disposable.
 
+**Using Claude Code or another agent?** Tell it:
+
+```text
+Read https://onepager.prive-thijs-hakkenberg.workers.dev/api/v1/onepagers/dfad9g7m/llm.txt and publish report.html to OnePager
+```
+
+That page is the [OnePager skill](https://onepager.prive-thijs-hakkenberg.workers.dev/p/dfad9g7m).
+It covers setup, publishing, updating, reading comments and sharing, and says how to install it
+as a Claude Code skill.
+
 - **Sign-in** with GitHub or Google OAuth, handled inside the Worker.
 - **Publishing** goes through a bearer-token REST API at `/api/v1` (compatible with the
   OnePager Claude Code plugin). Tokens are minted at `/settings/tokens`.
@@ -82,6 +92,7 @@ Configuration (`vars` in `wrangler.jsonc`):
 |---|---|
 | `PUBLIC_BASE_URL` | Origin used in OAuth callbacks, returned URLs and the Origin check |
 | `LAUNCH_SLUG` | If set, `/` serves that page to everyone, signed in or not (a landing page). If it is unset, missing or eyes-only, `/` redirects to `/me` |
+| `PUBLIC_SLUGS` | Comma-separated slugs that anyone may read without signing in: `/p/<slug>` (without the comments sidebar) and its `llm.txt`. Eyes-only pages are never public. The launch page is always public |
 | `MAX_HTML_BYTES` | Upload cap (default 5 MiB, sized for the free-tier CPU budget) |
 
 ## Publishing from the CLI / plugin

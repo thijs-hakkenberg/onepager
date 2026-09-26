@@ -76,6 +76,19 @@ describe("toMarkdown", () => {
     expect(await toMarkdown("<p>a &amp; b &lt;c&gt; &#233;&#x41;&nbsp;z</p>")).toBe("a & b <c> éA z");
   });
 
+  it("fences <pre> verbatim and backticks inline code", async () => {
+    const html = "<p>Run <code>npm  test</code> first.</p><pre>\n$ curl \\\n    -d '{}'\n\n# done\n</pre><p>after</p>";
+    expect(await toMarkdown(html)).toBe("Run `npm test` first.\n\n```\n$ curl \\\n    -d '{}'\n\n# done\n```\n\nafter");
+    expect(await toMarkdown("<pre><code>a\n  b</code></pre>")).toBe("```\na\n  b\n```");
+  });
+
+  it("renders tables as pipe tables", async () => {
+    const html = "<p>x</p><table><tr><th>Field</th><th>Meaning</th></tr><tr><td><code>a|b</code></td><td>one<br>two</td></tr></table><p>y</p>";
+    expect(await toMarkdown(html)).toBe("x\n\n| Field | Meaning |\n| --- | --- |\n| `a\\|b` | one two |\n\ny");
+    const two = "<table><tr><th>A</th></tr></table><table><tr><th>B</th></tr><tr><td>c</td></tr></table>";
+    expect(await toMarkdown(two)).toBe("| A |\n| --- |\n\n| B |\n| --- |\n| c |");
+  });
+
   it("tolerates self-closing SVG children", async () => {
     const svg = '<svg viewBox="0 0 8 8"><path d="M0 0"/><rect x="1" y="1"/><title>icon</title></svg>';
     expect(await toMarkdown(`<p>${svg} before</p><p>after</p>`)).toBe("before\n\nafter");
