@@ -4,6 +4,12 @@ Publish, version, share and comment on single-file HTML pages. It runs on the Cl
 Workers free tier: one Worker, a D1 database for metadata and a Workers KV namespace for the HTML
 (no payment method needed).
 
+**Try it:** a live instance runs at <https://onepager.prive-thijs-hakkenberg.workers.dev>.
+Sign in with GitHub or Google, mint a token at
+[`/settings/tokens`](https://onepager.prive-thijs-hakkenberg.workers.dev/settings/tokens)
+and publish with the `curl` example [below](#publishing-from-the-cli--plugin). It is a
+personal demo instance, so treat anything you publish there as disposable.
+
 - **Sign-in** with GitHub or Google OAuth, handled inside the Worker.
 - **Publishing** goes through a bearer-token REST API at `/api/v1` (compatible with the
   OnePager Claude Code plugin). Tokens are minted at `/settings/tokens`.
@@ -75,7 +81,7 @@ Configuration (`vars` in `wrangler.jsonc`):
 | Var | Meaning |
 |---|---|
 | `PUBLIC_BASE_URL` | Origin used in OAuth callbacks, returned URLs and the Origin check |
-| `LAUNCH_SLUG` | If set, `/` redirects to `/p/<LAUNCH_SLUG>`; otherwise it redirects to `/me` |
+| `LAUNCH_SLUG` | If set, `/` serves that page to everyone, signed in or not (a landing page). If it is unset, missing or eyes-only, `/` redirects to `/me` |
 | `MAX_HTML_BYTES` | Upload cap (default 5 MiB, sized for the free-tier CPU budget) |
 
 ## Publishing from the CLI / plugin

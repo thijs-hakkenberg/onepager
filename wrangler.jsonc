@@ -16,7 +16,7 @@
   "kv_namespaces": [{ "binding": "HTML", "id": "c2ba9f726cc64031ba285d84312d1534" }],
   "vars": {
     "PUBLIC_BASE_URL": "https://onepager.prive-thijs-hakkenberg.workers.dev",
-    "LAUNCH_SLUG": "",
+    "LAUNCH_SLUG": "omx29vls",
     "MAX_HTML_BYTES": "5242880"
   }
   // Secrets (wrangler secret put / .dev.vars):
