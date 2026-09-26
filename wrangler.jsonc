@@ -9,13 +9,13 @@
     {
       "binding": "DB",
       "database_name": "onepager",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "b6e2f599-1bb6-4f1e-be5e-2ad538a1da1c",
       "migrations_dir": "migrations"
     }
   ],
-  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "onepager-html" }],
+  "kv_namespaces": [{ "binding": "HTML", "id": "c2ba9f726cc64031ba285d84312d1534" }],
   "vars": {
-    "PUBLIC_BASE_URL": "http://localhost:8787",
+    "PUBLIC_BASE_URL": "https://onepager.prive-thijs-hakkenberg.workers.dev",
     "LAUNCH_SLUG": "",
     "MAX_HTML_BYTES": "5242880"
   }

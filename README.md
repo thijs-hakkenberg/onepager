@@ -1,7 +1,8 @@
 # OnePager on Cloudflare
 
 Publish, version, share and comment on single-file HTML pages. It runs on the Cloudflare
-Workers free tier: one Worker, a D1 database for metadata and an R2 bucket for the HTML.
+Workers free tier: one Worker, a D1 database for metadata and a Workers KV namespace for the HTML
+(no payment method needed).
 
 - **Sign-in** with GitHub or Google OAuth, handled inside the Worker.
 - **Publishing** goes through a bearer-token REST API at `/api/v1` (compatible with the
@@ -17,7 +18,7 @@ Workers free tier: one Worker, a D1 database for metadata and an R2 bucket for t
 ```
 src/app.ts             route wiring (Hono)
 src/auth/              OAuth sign-in, sessions, bearer tokens, credential middleware
-src/domain/            D1/R2 data layer and the access rules
+src/domain/            D1/KV data layer and the access rules
 src/html/              sanitiser, text extraction, comment selection shim
 src/routes/            JSON API and server-rendered pages
 src/views/             Hono JSX views
@@ -44,7 +45,7 @@ For local sign-in, register an OAuth app whose callback is
 CI (`.github/workflows/ci.yml`) typechecks and tests every PR and push. A push to `main`
 then deploys:
 
-1. `scripts/provision.sh` creates the D1 database `onepager` and the R2 bucket
+1. `scripts/provision.sh` creates the D1 database `onepager` and the KV namespace
    `onepager-html` if they are missing. It writes their id and the public URL into the
    CI copy of `wrangler.jsonc`.
 2. It applies the D1 migrations, then runs `wrangler deploy`.
@@ -92,6 +93,15 @@ curl -sS "$ONEPAGER_BASE_URL/api/v1/onepagers" \
 
 To republish a page, pass `"slug": "<slug>"`. Every API endpoint is listed in
 `src/routes/onepagers.ts`, `groups.ts` and `tokens.ts`.
+
+## Free-tier limits worth knowing
+
+- **KV:** 1,000 writes and 1,000 deletes per day. Each publish, republish or restore uses one
+  write, and deleting a page uses one delete per version. Reads are limited to 100,000 per day.
+- **KV is eventually consistent.** Another region can take up to about 60 seconds to see a
+  new version. The metadata in D1 updates immediately.
+- **Workers:** 100,000 requests per day, and 10 ms of CPU per request. The 5 MiB upload cap
+  keeps sanitising within that CPU budget.
 
 ## Security notes
 

@@ -1,6 +1,6 @@
 import type { Bindings } from "../env";
 
-export type Store = Pick<Bindings, "DB" | "BUCKET">;
+export type Store = Pick<Bindings, "DB" | "HTML">;
 export interface Actor {
   id: string;
   email: string | null;

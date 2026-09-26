@@ -1,6 +1,6 @@
 export interface Bindings {
   DB: D1Database;
-  BUCKET: R2Bucket;
+  HTML: KVNamespace;
   ASSETS: Fetcher;
   PUBLIC_BASE_URL: string;
   LAUNCH_SLUG?: string;

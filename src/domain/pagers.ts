@@ -83,18 +83,17 @@ export async function html(env: Store, slug: string, n?: number): Promise<string
     if (!meta) return null;
     version = meta.version_count;
   }
-  const obj = await env.BUCKET.get(blobKey(slug, version));
-  return obj ? obj.text() : null;
+  return env.HTML.get(blobKey(slug, version), "text");
 }
 
 // Blob first, rows second: a failed D1 write leaves at most an orphaned blob,
 // which is deleted on the way out; rows never point at a missing blob.
 async function withBlob<T>(env: Store, key: string, bytes: Uint8Array, write: () => Promise<T>): Promise<T> {
-  await env.BUCKET.put(key, bytes, { httpMetadata: { contentType: "text/html; charset=utf-8" } });
+  await env.HTML.put(key, bytes);
   try {
     return await write();
   } catch (err) {
-    await env.BUCKET.delete(key).catch(() => {});
+    await env.HTML.delete(key).catch(() => {});
     throw err;
   }
 }
@@ -174,10 +173,9 @@ export async function republish(env: Store, meta: PagerMeta, by: Actor, input: P
 
 export async function restore(env: Store, meta: PagerMeta, by: Actor, from: number): Promise<VersionRow | null> {
   const row = await env.DB.prepare("SELECT * FROM versions WHERE slug = ? AND n = ?").bind(meta.slug, from).first();
-  const obj = row && (await env.BUCKET.get(blobKey(meta.slug, from)));
-  if (!row || !obj) return null;
+  const content = row && (await env.HTML.get(blobKey(meta.slug, from), "text"));
+  if (!row || content === null) return null;
   const source = toVersion(row);
-  const content = await obj.text();
   const v = {
     size_bytes: source.size_bytes, content_sha256: source.content_sha256, title: source.title,
     original_filename: source.original_filename, comments_enabled: source.comments_enabled, restored_from_version: from,
@@ -202,11 +200,12 @@ export async function remove(env: Store, slug: string): Promise<boolean> {
     ...["versions", "grants", "views", "comments"].map((t) => env.DB.prepare(`DELETE FROM ${t} WHERE slug = ?`).bind(slug)),
     env.DB.prepare("DELETE FROM group_members WHERE pager_slug = ?").bind(slug),
   ]);
+  // KV has no bulk delete; one call per stored version.
   let cursor: string | undefined;
   do {
-    const page = await env.BUCKET.list({ prefix: `${slug}/`, cursor });
-    if (page.objects.length) await env.BUCKET.delete(page.objects.map((o) => o.key));
-    cursor = page.truncated ? page.cursor : undefined;
+    const page = await env.HTML.list({ prefix: `${slug}/`, cursor });
+    await Promise.all(page.keys.map((k) => env.HTML.delete(k.name)));
+    cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
   return (gone.meta.changes ?? 0) > 0;
 }

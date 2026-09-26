@@ -87,7 +87,7 @@ describe("pagers", () => {
       expect(row!.n, table).toBe(0);
     }
     expect(await groups.members(env, `grp${seq}`)).toEqual([]);
-    expect((await env.BUCKET.list({ prefix: `${slug}/` })).objects).toEqual([]);
+    expect((await env.HTML.list({ prefix: `${slug}/` })).keys).toEqual([]);
     expect(await pagers.remove(env, slug)).toBe(false);
   });
 

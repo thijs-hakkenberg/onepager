@@ -41,7 +41,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Provision D1 + R2 and resolve the public URL
+      - name: Provision D1 + KV and resolve the public URL
         run: scripts/provision.sh
         env:
           PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
